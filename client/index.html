@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boxhead Multiplayer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #10131a;
+        color: #f2f4f8;
+      }
+      .app {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        background: #1a1f2b;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      input,
+      button {
+        padding: 10px;
+        border-radius: 8px;
+        border: none;
+        font-size: 15px;
+      }
+      input {
+        background: #2a3142;
+        color: #fff;
+      }
+      button {
+        background: #2f8cff;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      #game-root {
+        min-height: 800px;
+      }
+      ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .status {
+        color: #9dc1ff;
+      }
+      .error {
+        color: #ff8a8a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <div class="card">
+        <h2>Boxhead Multiplayer (Zombies + PvP)</h2>
+        <p>Controles: WASD mover, mouse apuntar, click disparar.</p>
+      </div>
+
+      <div id="lobby" class="card">
+        <div class="row">
+          <button id="create-room-btn">Crear sala</button>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <input id="join-room-input" maxlength="4" placeholder="Codigo (4 letras)" />
+          <button id="join-room-btn">Unirse a sala</button>
+        </div>
+        <p id="room-code" class="status">No estas en una sala.</p>
+        <p id="message" class="status"></p>
+        <h3>Jugadores conectados</h3>
+        <ul id="players-list"></ul>
+      </div>
+
+      <div id="game-root"></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
