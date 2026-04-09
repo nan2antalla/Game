@@ -75,9 +75,11 @@ Juego web 2D top-down shooter estilo Boxhead con PvP + zombies, con servidor aut
 2. Configurar:
    - Build Command: `npm install`
    - Start Command: `npm start`
-3. Variables de entorno:
-   - `PORT` = `3000`
-   - `CLIENT_URL` = URL publica del frontend en Netlify (ejemplo `https://tu-juego.netlify.app`)
+3. Variables de entorno (obligatorio para que Netlify pueda conectar Socket.IO):
+   - `CLIENT_URL` = URL exacta del sitio en Netlify, sin barra final (ejemplo `https://tu-juego.netlify.app`).
+     Si dejas `http://localhost:5173` en Render, el servidor en produccion rechaza el origen de Netlify y veras errores `WebSocket connection failed` en la consola.
+   - `PORT`: en Render no hace falta fijarlo; Render asigna `PORT` automaticamente (el codigo ya usa `process.env.PORT`).
+   - Opcional: usa **npm** en Render (`npm install` / `npm start`) y evita mezclar `yarn` con `package-lock.json` para no tener advertencias de lockfiles.
 4. Desplegar y copiar la URL publica del backend.
 
 ## Deploy frontend en Netlify
