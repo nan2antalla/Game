@@ -15,21 +15,38 @@ const allowedOrigins = CLIENT_URL.split(",")
   .map((value) => normalizeOrigin(value.trim()))
   .filter(Boolean);
 
+const strictCors = process.env.STRICT_CORS === "1" || process.env.STRICT_CORS === "true";
+
+function isHttpsNetlifyOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return u.protocol === "https:" && u.hostname.endsWith(".netlify.app");
+  } catch {
+    return false;
+  }
+}
+
 const isAllowedOrigin = (origin) => {
   // En desarrollo permitimos acceso flexible para evitar bloqueos de CORS.
   if (process.env.NODE_ENV !== "production") return true;
   if (!origin) return true;
   const normalized = normalizeOrigin(origin);
-  return allowedOrigins.some((allowed) => allowed === normalized);
+  if (allowedOrigins.some((allowed) => allowed === normalized)) return true;
+  // Netlify siempre usa https://algo.netlify.app; evita fallos si CLIENT_URL no coincide al caracter.
+  if (!strictCors && isHttpsNetlifyOrigin(origin)) return true;
+  return false;
+};
+
+const corsOriginCallback = (origin, callback) => {
+  if (isAllowedOrigin(origin)) return callback(null, true);
+  return callback(null, false);
 };
 
 const app = express();
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) return callback(null, true);
-      return callback(new Error("CORS bloqueado para este origen"));
-    },
+    origin: corsOriginCallback,
+    methods: ["GET", "POST", "OPTIONS"],
   }),
 );
 app.use(express.json());
@@ -41,12 +58,11 @@ app.get("/health", (_req, res) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) return callback(null, true);
-      return callback(new Error("CORS bloqueado para este origen"));
-    },
-    methods: ["GET", "POST"],
+    origin: corsOriginCallback,
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: false,
   },
+  allowEIO3: true,
 });
 
 const gameServer = new GameServer(io);
