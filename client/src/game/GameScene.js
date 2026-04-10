@@ -4,11 +4,15 @@ export class GameScene extends Phaser.Scene {
   constructor(roomClient) {
     super("game-scene");
     this.roomClient = roomClient;
-    this.state = { players: [], zombies: [], bullets: [] };
+    this.state = { players: [], zombies: [], bullets: [], walls: [], barrels: [], boxes: [], items: [] };
     this.playerSprites = new Map();
     this.playerNameTexts = new Map();
     this.zombieSprites = new Map();
     this.bulletSprites = new Map();
+    this.wallSprites = new Map();
+    this.barrelSprites = new Map();
+    this.boxSprites = new Map();
+    this.itemSprites = new Map();
     this.lastDeathEvent = null;
   }
 
@@ -48,6 +52,26 @@ export class GameScene extends Phaser.Scene {
     });
     this.roomClient.onScoreUpdated(() => {
       this.renderState();
+    });
+    this.roomClient.onBarrelExploded((payload) => {
+      const fx = this.add.circle(payload.x, payload.y, 12, 0xff9f43);
+      this.tweens.add({
+        targets: fx,
+        radius: 95,
+        alpha: 0,
+        duration: 250,
+        onComplete: () => fx.destroy(),
+      });
+    });
+    this.roomClient.onBoxDestroyed((payload) => {
+      const fx = this.add.circle(payload.x, payload.y, 10, 0xfbbf24);
+      this.tweens.add({
+        targets: fx,
+        radius: 45,
+        alpha: 0,
+        duration: 200,
+        onComplete: () => fx.destroy(),
+      });
     });
 
     this.setupWeaponHotkeys();
@@ -108,9 +132,10 @@ export class GameScene extends Phaser.Scene {
     this.syncEntities(
       this.zombieSprites,
       this.state.zombies,
-      (zombie) => this.add.circle(zombie.x, zombie.y, 14, 0xd65454),
+      (zombie) => this.add.circle(zombie.x, zombie.y, 14, this.zombieColor(zombie.type)),
       (sprite, zombie) => {
         sprite.setPosition(zombie.x, zombie.y);
+        sprite.setFillStyle(this.zombieColor(zombie.type));
       },
     );
 
@@ -120,6 +145,40 @@ export class GameScene extends Phaser.Scene {
       (bullet) => this.add.circle(bullet.x, bullet.y, 4, 0xf9df67),
       (sprite, bullet) => {
         sprite.setPosition(bullet.x, bullet.y);
+      },
+    );
+    this.syncEntities(
+      this.wallSprites,
+      this.state.walls,
+      (wall) => this.add.rectangle(wall.x, wall.y, 40, 40, wall.destructible ? 0x6b7280 : 0x374151),
+      (sprite, wall) => {
+        sprite.setPosition(wall.x, wall.y);
+        sprite.setFillStyle(wall.destructible ? 0x6b7280 : 0x374151);
+      },
+    );
+    this.syncEntities(
+      this.barrelSprites,
+      this.state.barrels,
+      (barrel) => this.add.circle(barrel.x, barrel.y, 14, 0xdc2626),
+      (sprite, barrel) => {
+        sprite.setPosition(barrel.x, barrel.y);
+      },
+    );
+    this.syncEntities(
+      this.boxSprites,
+      this.state.boxes,
+      (box) => this.add.rectangle(box.x, box.y, 28, 28, 0xb45309),
+      (sprite, box) => {
+        sprite.setPosition(box.x, box.y);
+      },
+    );
+    this.syncEntities(
+      this.itemSprites,
+      this.state.items,
+      (item) => this.add.circle(item.x, item.y, 8, item.type === "health" ? 0x22c55e : 0x60a5fa),
+      (sprite, item) => {
+        sprite.setPosition(item.x, item.y);
+        sprite.setFillStyle(item.type === "health" ? 0x22c55e : 0x60a5fa);
       },
     );
 
@@ -170,6 +229,13 @@ export class GameScene extends Phaser.Scene {
       const key = this.input.keyboard.addKey(code);
       key.on("down", () => this.roomClient.changeWeapon(index));
     });
+  }
+
+  zombieColor(type) {
+    if (type === "fast") return 0xf59e0b;
+    if (type === "tank") return 0x7c3aed;
+    if (type === "erratic") return 0x06b6d4;
+    return 0xd65454;
   }
 
   syncEntities(store, entities, createFn, updateFn) {

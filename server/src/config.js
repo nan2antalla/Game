@@ -20,5 +20,22 @@ export const ZOMBIE_CONTACT_DAMAGE = 12;
 export const ZOMBIE_CONTACT_COOLDOWN_MS = 1000;
 export const ZOMBIE_SPAWN_INTERVAL_MS = 2500;
 export const ZOMBIE_MAX_PER_ROOM = 30;
+export const ZOMBIE_AI_TICK_MS = 100;
+export const ZOMBIE_PATH_RECALC_MS = 700;
+
+export const WORLD_CELL_SIZE = 40;
+export const WORLD_COLS = GAME_WIDTH / WORLD_CELL_SIZE;
+export const WORLD_ROWS = GAME_HEIGHT / WORLD_CELL_SIZE;
+
+export const BARREL_RADIUS = 14;
+export const BARREL_MAX_HP = 35;
+export const BARREL_EXPLOSION_RADIUS = 95;
+export const BARREL_EXPLOSION_DAMAGE = 45;
+
+export const BOX_RADIUS = 14;
+export const BOX_MAX_HP = 30;
+export const WALL_MAX_HP = 50;
+
+export const ITEM_PICKUP_RADIUS = 20;
 
 export const ROOM_MAX_PLAYERS = 4;

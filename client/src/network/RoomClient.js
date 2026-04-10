@@ -12,6 +12,9 @@ export class RoomClient {
       onPlayerRespawn: () => {},
       onScoreUpdated: () => {},
       onGameOver: () => {},
+      onBarrelExploded: () => {},
+      onBoxDestroyed: () => {},
+      onItemDropped: () => {},
     };
 
     socket.on("connect", () => {
@@ -78,6 +81,15 @@ export class RoomClient {
     socket.on("gameOver", (payload) => {
       this.listeners.onGameOver(payload);
     });
+    socket.on("barrelExploded", (payload) => {
+      this.listeners.onBarrelExploded(payload);
+    });
+    socket.on("boxDestroyed", (payload) => {
+      this.listeners.onBoxDestroyed(payload);
+    });
+    socket.on("itemDropped", (payload) => {
+      this.listeners.onItemDropped(payload);
+    });
 
     window.addEventListener("beforeunload", () => {
       socket.emit("leaveRoom");
@@ -114,6 +126,18 @@ export class RoomClient {
 
   onGameOver(cb) {
     this.listeners.onGameOver = cb;
+  }
+
+  onBarrelExploded(cb) {
+    this.listeners.onBarrelExploded = cb;
+  }
+
+  onBoxDestroyed(cb) {
+    this.listeners.onBoxDestroyed = cb;
+  }
+
+  onItemDropped(cb) {
+    this.listeners.onItemDropped = cb;
   }
 
   createRoom(playerName) {
