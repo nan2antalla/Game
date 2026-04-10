@@ -8,6 +8,9 @@ export class RoomClient {
       onState: () => {},
       onMessage: () => {},
       onGameStarted: () => {},
+      onPlayerDied: () => {},
+      onPlayerRespawn: () => {},
+      onScoreUpdated: () => {},
     };
 
     socket.on("connect", () => {
@@ -62,6 +65,16 @@ export class RoomClient {
       this.listeners.onMessage(message, true);
     });
 
+    socket.on("playerDied", (payload) => {
+      this.listeners.onPlayerDied(payload);
+    });
+    socket.on("playerRespawn", (payload) => {
+      this.listeners.onPlayerRespawn(payload);
+    });
+    socket.on("scoreUpdated", (payload) => {
+      this.listeners.onScoreUpdated(payload);
+    });
+
     window.addEventListener("beforeunload", () => {
       socket.emit("leaveRoom");
     });
@@ -81,6 +94,18 @@ export class RoomClient {
 
   onGameStarted(cb) {
     this.listeners.onGameStarted = cb;
+  }
+
+  onPlayerDied(cb) {
+    this.listeners.onPlayerDied = cb;
+  }
+
+  onPlayerRespawn(cb) {
+    this.listeners.onPlayerRespawn = cb;
+  }
+
+  onScoreUpdated(cb) {
+    this.listeners.onScoreUpdated = cb;
   }
 
   createRoom() {
@@ -103,6 +128,10 @@ export class RoomClient {
 
   startGame() {
     socket.emit("startGame");
+  }
+
+  changeWeapon(weaponIndex) {
+    socket.emit("changeWeapon", { weaponIndex });
   }
 
   sendInput(input) {

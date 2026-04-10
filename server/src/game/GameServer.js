@@ -25,6 +25,7 @@ export class GameServer {
     socket.on("leave-room", () => this.handleLeaveRoom(socket));
     socket.on("startGame", () => this.handleStartGame(socket));
     socket.on("selectMap", (payload) => this.handleSelectMap(socket, payload));
+    socket.on("changeWeapon", (payload) => this.handleChangeWeapon(socket, payload));
     socket.on("input-update", (input) => this.handleInput(socket, input));
     socket.on("shoot", (payload) => this.handleShoot(socket, payload));
     socket.on("disconnect", () => this.handleDisconnect(socket));
@@ -125,6 +126,16 @@ export class GameServer {
     room.tryShoot(socket.id, payload?.aimAngle, Date.now());
   }
 
+  handleChangeWeapon(socket, payload) {
+    const room = this.getRoomForSocket(socket.id);
+    if (!room) return;
+    const weaponIndex = Number(payload?.weaponIndex);
+    const result = room.changeWeapon(socket.id, weaponIndex);
+    if (!result.ok) {
+      socket.emit("error-message", result.reason);
+    }
+  }
+
   handleDisconnect(socket) {
     this.removeFromRoom(socket.id);
   }
@@ -173,6 +184,10 @@ export class GameServer {
       for (const room of this.rooms.values()) {
         if (room.state !== "playing") continue;
         this.io.to(room.code).emit("state", room.buildState());
+        const events = room.consumeEvents();
+        for (const event of events) {
+          this.io.to(room.code).emit(event.type, event.payload);
+        }
       }
       this.lastBroadcastAt = now;
     }

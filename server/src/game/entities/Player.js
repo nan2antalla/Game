@@ -1,4 +1,5 @@
 import { PLAYER_MAX_HP } from "../../config.js";
+import { DEFAULT_WEAPONS } from "../weapons.js";
 
 export class Player {
   constructor({ id, name, x, y }) {
@@ -11,6 +12,12 @@ export class Player {
     this.input = { up: false, down: false, left: false, right: false };
     this.lastShotAt = 0;
     this.isAlive = true;
+    this.respawnAt = null;
+    this.score = 0;
+    this.kills = 0;
+    this.deaths = 0;
+    this.weapons = structuredClone(DEFAULT_WEAPONS);
+    this.currentWeaponIndex = 0;
   }
 
   applyInput(input = {}) {

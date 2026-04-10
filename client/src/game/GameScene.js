@@ -8,6 +8,7 @@ export class GameScene extends Phaser.Scene {
     this.playerSprites = new Map();
     this.zombieSprites = new Map();
     this.bulletSprites = new Map();
+    this.lastDeathEvent = null;
   }
 
   create() {
@@ -20,6 +21,10 @@ export class GameScene extends Phaser.Scene {
     };
 
     this.hpText = this.add.text(10, 10, "HP: 100", { color: "#ffffff", fontSize: "20px" }).setScrollFactor(0);
+    this.scoreText = this.add.text(10, 38, "Score: 0", { color: "#fef08a", fontSize: "20px" }).setScrollFactor(0);
+    this.kdText = this.add.text(10, 66, "K/D: 0/0", { color: "#c4b5fd", fontSize: "20px" }).setScrollFactor(0);
+    this.weaponText = this.add.text(10, 94, "Arma: pistol", { color: "#86efac", fontSize: "20px" }).setScrollFactor(0);
+    this.respawnText = this.add.text(10, 122, "", { color: "#fca5a5", fontSize: "22px" }).setScrollFactor(0);
 
     this.input.on("pointerdown", () => {
       const me = this.state.players.find((p) => p.id === this.roomClient.socketId);
@@ -33,10 +38,27 @@ export class GameScene extends Phaser.Scene {
       this.state = state;
       this.renderState();
     });
+
+    this.roomClient.onPlayerDied((event) => {
+      this.lastDeathEvent = event;
+    });
+    this.roomClient.onPlayerRespawn(() => {
+      this.lastDeathEvent = null;
+    });
+    this.roomClient.onScoreUpdated(() => {
+      this.renderState();
+    });
+
+    this.setupWeaponHotkeys();
   }
 
   update() {
     const me = this.state.players.find((p) => p.id === this.roomClient.socketId);
+    if (!me || !me.isAlive) {
+      this.sendIdleInput();
+      this.renderRespawnCountdown(me);
+      return;
+    }
     const pointer = this.input.activePointer;
     const aimAngle = me ? Phaser.Math.Angle.Between(me.x, me.y, pointer.worldX, pointer.worldY) : 0;
 
@@ -47,6 +69,7 @@ export class GameScene extends Phaser.Scene {
       right: this.cursors.d.isDown,
       aimAngle,
     });
+    this.renderRespawnCountdown(me);
   }
 
   renderState() {
@@ -61,6 +84,7 @@ export class GameScene extends Phaser.Scene {
         sprite.setPosition(player.x, player.y);
         const color = player.id === this.roomClient.socketId ? 0x45d37b : 0x59a7ff;
         sprite.setFillStyle(player.isAlive ? color : 0x666666);
+        sprite.setVisible(player.isAlive);
       },
     );
 
@@ -83,7 +107,52 @@ export class GameScene extends Phaser.Scene {
     );
 
     const me = this.state.players.find((p) => p.id === this.roomClient.socketId);
-    if (me) this.hpText.setText(`HP: ${me.hp}${me.isAlive ? "" : " (Muerto)"}`);
+    if (me) {
+      this.hpText.setText(`HP: ${me.hp}${me.isAlive ? "" : " (Muerto)"}`);
+      this.scoreText.setText(`Score: ${me.score ?? 0}`);
+      this.kdText.setText(`K/D: ${me.kills ?? 0}/${me.deaths ?? 0}`);
+      this.weaponText.setText(`Arma: ${me.currentWeaponId || "pistol"} (slot ${me.currentWeaponIndex ?? 0})`);
+      this.renderRespawnCountdown(me);
+    }
+  }
+
+  renderRespawnCountdown(me) {
+    if (!me || me.isAlive || !me.respawnAt) {
+      this.respawnText.setText("");
+      return;
+    }
+    const remainingMs = Math.max(0, me.respawnAt - Date.now());
+    const seconds = Math.ceil(remainingMs / 1000);
+    this.respawnText.setText(`Respawn en ${seconds} segundos`);
+  }
+
+  sendIdleInput() {
+    this.roomClient.sendInput({
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+      aimAngle: 0,
+    });
+  }
+
+  setupWeaponHotkeys() {
+    const keyMap = [
+      Phaser.Input.Keyboard.KeyCodes.ZERO,
+      Phaser.Input.Keyboard.KeyCodes.ONE,
+      Phaser.Input.Keyboard.KeyCodes.TWO,
+      Phaser.Input.Keyboard.KeyCodes.THREE,
+      Phaser.Input.Keyboard.KeyCodes.FOUR,
+      Phaser.Input.Keyboard.KeyCodes.FIVE,
+      Phaser.Input.Keyboard.KeyCodes.SIX,
+      Phaser.Input.Keyboard.KeyCodes.SEVEN,
+      Phaser.Input.Keyboard.KeyCodes.EIGHT,
+      Phaser.Input.Keyboard.KeyCodes.NINE,
+    ];
+    keyMap.forEach((code, index) => {
+      const key = this.input.keyboard.addKey(code);
+      key.on("down", () => this.roomClient.changeWeapon(index));
+    });
   }
 
   syncEntities(store, entities, createFn, updateFn) {

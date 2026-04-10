@@ -1,12 +1,11 @@
 import {
-  BULLET_DAMAGE,
   BULLET_LIFETIME_MS,
   BULLET_RADIUS,
-  BULLET_SPEED,
-  FIRE_COOLDOWN_MS,
   GAME_HEIGHT,
   GAME_WIDTH,
   PLAYER_RADIUS,
+  PLAYER_MAX_HP,
+  PLAYER_RESPAWN_MS,
   PLAYER_SPEED,
   ROOM_MAX_PLAYERS,
   ZOMBIE_CONTACT_COOLDOWN_MS,
@@ -20,6 +19,8 @@ import { Bullet } from "./entities/Bullet.js";
 import { Player } from "./entities/Player.js";
 import { Zombie } from "./entities/Zombie.js";
 import { clamp, distanceSquared, randomSpawn } from "../utils/helpers.js";
+import { getCurrentWeapon, getWeaponByIndex } from "./weapons.js";
+import { applyPlayerDeathScore, applyZombieKillScore } from "./scoring.js";
 
 export class Room {
   constructor(code) {
@@ -34,6 +35,17 @@ export class Room {
     this.lastZombieSpawnAt = 0;
     this.bulletIdCounter = 1;
     this.zombieIdCounter = 1;
+    this.events = [];
+  }
+
+  consumeEvents() {
+    const list = this.events;
+    this.events = [];
+    return list;
+  }
+
+  queueEvent(type, payload) {
+    this.events.push({ type, payload });
   }
 
   get canJoin() {
@@ -81,15 +93,25 @@ export class Room {
     player.applyInput(input);
   }
 
+  changeWeapon(socketId, weaponIndex) {
+    const player = this.players.get(socketId);
+    if (!player) return { ok: false, reason: "Jugador no encontrado." };
+    const candidate = getWeaponByIndex(player, weaponIndex);
+    if (!candidate) return { ok: false, reason: "Slot de arma invalido." };
+    player.currentWeaponIndex = weaponIndex;
+    return { ok: true, weaponId: candidate.weapon.id };
+  }
+
   tryShoot(socketId, angle, now) {
     const player = this.players.get(socketId);
     if (!player || !player.isAlive) return;
-
-    if (now - player.lastShotAt < FIRE_COOLDOWN_MS) return;
+    const currentWeapon = getCurrentWeapon(player);
+    if (!currentWeapon) return;
+    if (now - player.lastShotAt < currentWeapon.stats.fireRateMs) return;
 
     const shootAngle = typeof angle === "number" ? angle : player.aimAngle;
-    const vx = Math.cos(shootAngle) * BULLET_SPEED;
-    const vy = Math.sin(shootAngle) * BULLET_SPEED;
+    const vx = Math.cos(shootAngle) * currentWeapon.stats.bulletSpeed;
+    const vy = Math.sin(shootAngle) * currentWeapon.stats.bulletSpeed;
     const bullet = new Bullet({
       id: `${this.code}-b-${this.bulletIdCounter++}`,
       ownerId: player.id,
@@ -98,6 +120,7 @@ export class Room {
       vx,
       vy,
       createdAt: now,
+      damage: currentWeapon.stats.damage,
     });
 
     this.bullets.set(bullet.id, bullet);
@@ -107,6 +130,7 @@ export class Room {
   tick(deltaMs, now) {
     if (this.state !== "playing") return;
     const dt = deltaMs / 1000;
+    this.processRespawns(now);
     this.movePlayers(dt);
     this.spawnZombies(now);
     this.moveZombies(dt, now);
@@ -168,7 +192,9 @@ export class Room {
         if (now - lastHitAt >= ZOMBIE_CONTACT_COOLDOWN_MS) {
           closest.hp = Math.max(0, closest.hp - ZOMBIE_CONTACT_DAMAGE);
           zombie.lastContactDamageAtByPlayer.set(closest.id, now);
-          if (closest.hp <= 0) closest.isAlive = false;
+          if (closest.hp <= 0) {
+            this.handlePlayerDeath(closest, null, "zombie", now);
+          }
         }
       }
     }
@@ -195,8 +221,11 @@ export class Room {
         if (!target.isAlive || target.id === bullet.ownerId) continue;
         const hitRadius = PLAYER_RADIUS + BULLET_RADIUS;
         if (distanceSquared(bullet.x, bullet.y, target.x, target.y) <= hitRadius * hitRadius) {
-          target.hp = Math.max(0, target.hp - BULLET_DAMAGE);
-          if (target.hp <= 0) target.isAlive = false;
+          target.hp = Math.max(0, target.hp - bullet.damage);
+          if (target.hp <= 0) {
+            const killer = this.players.get(bullet.ownerId) || null;
+            this.handlePlayerDeath(target, killer, "player", now);
+          }
           bullet.isAlive = false;
           break;
         }
@@ -207,8 +236,15 @@ export class Room {
       for (const zombie of this.zombies.values()) {
         const hitRadius = ZOMBIE_RADIUS + BULLET_RADIUS;
         if (distanceSquared(bullet.x, bullet.y, zombie.x, zombie.y) <= hitRadius * hitRadius) {
-          zombie.hp = Math.max(0, zombie.hp - BULLET_DAMAGE);
-          if (zombie.hp <= 0) zombie.isAlive = false;
+          zombie.hp = Math.max(0, zombie.hp - bullet.damage);
+          if (zombie.hp <= 0) {
+            zombie.isAlive = false;
+            const killer = this.players.get(bullet.ownerId);
+            if (killer) {
+              applyZombieKillScore(killer);
+              this.queueEvent("scoreUpdated", this.buildPlayerStatsPayload(killer));
+            }
+          }
           bullet.isAlive = false;
           break;
         }
@@ -222,6 +258,50 @@ export class Room {
     for (const [id, zombie] of this.zombies.entries()) {
       if (!zombie.isAlive) this.zombies.delete(id);
     }
+  }
+
+  processRespawns(now) {
+    for (const player of this.players.values()) {
+      if (player.isAlive || !player.respawnAt) continue;
+      if (now < player.respawnAt) continue;
+      const spawn = randomSpawn(GAME_WIDTH, GAME_HEIGHT);
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.hp = PLAYER_MAX_HP;
+      player.isAlive = true;
+      player.respawnAt = null;
+      this.queueEvent("playerRespawn", { roomCode: this.code, playerId: player.id });
+    }
+  }
+
+  handlePlayerDeath(victim, killer, cause, now) {
+    if (!victim.isAlive) return;
+    victim.isAlive = false;
+    victim.hp = 0;
+    victim.respawnAt = now + PLAYER_RESPAWN_MS;
+
+    applyPlayerDeathScore({ victim, killer, cause });
+    this.queueEvent("playerDied", {
+      roomCode: this.code,
+      victimId: victim.id,
+      killerId: killer?.id || null,
+      cause,
+      respawnAt: victim.respawnAt,
+    });
+    this.queueEvent("scoreUpdated", this.buildPlayerStatsPayload(victim));
+    if (killer && killer.id !== victim.id) {
+      this.queueEvent("scoreUpdated", this.buildPlayerStatsPayload(killer));
+    }
+  }
+
+  buildPlayerStatsPayload(player) {
+    return {
+      roomCode: this.code,
+      playerId: player.id,
+      score: player.score,
+      kills: player.kills,
+      deaths: player.deaths,
+    };
   }
 
   getLobbyPlayers() {
@@ -250,6 +330,12 @@ export class Room {
         hp: p.hp,
         aimAngle: p.aimAngle,
         isAlive: p.isAlive,
+        respawnAt: p.respawnAt,
+        score: p.score,
+        kills: p.kills,
+        deaths: p.deaths,
+        currentWeaponIndex: p.currentWeaponIndex,
+        currentWeaponId: getCurrentWeapon(p)?.weapon.id || null,
       })),
       zombies: [...this.zombies.values()].map((z) => ({
         id: z.id,

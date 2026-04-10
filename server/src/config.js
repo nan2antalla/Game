@@ -7,12 +7,11 @@ export const STATE_BROADCAST_RATE = 20;
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_SPEED = 180;
 export const PLAYER_RADIUS = 16;
+export const PLAYER_RESPAWN_MS = 10000;
 
 export const BULLET_SPEED = 650;
 export const BULLET_RADIUS = 4;
-export const BULLET_DAMAGE = 20;
 export const BULLET_LIFETIME_MS = 1200;
-export const FIRE_COOLDOWN_MS = 180;
 
 export const ZOMBIE_MAX_HP = 60;
 export const ZOMBIE_SPEED = 80;
