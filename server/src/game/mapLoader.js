@@ -20,16 +20,20 @@ export async function listMaps(mapsDir) {
   const result = [];
   for (const file of jsonFiles) {
     const filePath = path.join(mapsDir, file);
+    const stem = path.basename(file, ".json");
+    const id = safeName(stem);
+    if (!id) continue;
     try {
       const parsed = JSON.parse(await fs.readFile(filePath, "utf8"));
-      const name = safeName(parsed.name || path.basename(file, ".json"));
+      const displayName =
+        typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : stem;
       result.push({
-        id: name,
-        name: parsed.name || name,
+        id,
+        name: displayName,
         width: parsed.width,
         height: parsed.height,
-        previewUrl: `/maps/${name}.png`,
-        file: `${name}.json`,
+        previewUrl: `/maps/${id}.png`,
+        file,
       });
     } catch {
       // ignore malformed map
@@ -38,16 +42,25 @@ export async function listMaps(mapsDir) {
   return result;
 }
 
-export async function loadMapById(mapsDir, mapId) {
-  const id = safeName(mapId);
-  if (!id) return null;
-  const filePath = path.join(mapsDir, `${id}.json`);
+/** Carga un mapa por el nombre real del archivo en disco (ej. "The House.json"). */
+export async function loadMapFile(mapsDir, fileName) {
+  const safe = path.basename(fileName);
+  if (!safe.endsWith(".json")) return null;
+  const filePath = path.join(mapsDir, safe);
   try {
-    const parsed = JSON.parse(await fs.readFile(filePath, "utf8"));
-    return parsed;
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
   } catch {
     return null;
   }
+}
+
+export async function loadMapById(mapsDir, mapId) {
+  const id = safeName(mapId);
+  if (!id) return null;
+  const list = await listMaps(mapsDir);
+  const entry = list.find((m) => m.id === id);
+  if (!entry) return null;
+  return loadMapFile(mapsDir, entry.file);
 }
 
 export function buildWorldFromMap(mapData) {

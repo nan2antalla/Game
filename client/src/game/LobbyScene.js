@@ -89,7 +89,7 @@ export class LobbyScene extends Phaser.Scene {
       }
     });
 
-    this.roomClient.onLobbyUpdate((lobby) => {
+    this.roomClient.onLobbySceneUpdate((lobby) => {
       this.lobby = lobby;
       if (this.scene.isActive()) this.renderLobby();
     });
@@ -108,10 +108,12 @@ export class LobbyScene extends Phaser.Scene {
 
     this.roomCodeText.setText(`Sala: ${lobby.roomCode}`);
     this.stateText.setText(`Estado: ${lobby.state}`);
-    this.mapText.setText(`Mapa: ${lobby.selectedMap}`);
+    const mapMeta = this.maps.find((m) => m.id === lobby.selectedMap);
+    const mapLabel = mapMeta?.name || lobby.selectedMap;
+    this.mapText.setText(`Mapa: ${mapLabel}`);
     this.modeText.setText(`Modo: ${lobby.mode}`);
     this.modeDescText.setText(this.getModeDescription(lobby.mode));
-    this.mapButton.setText(`Cambiar mapa: ${lobby.selectedMap}`);
+    this.mapButton.setText(`Cambiar mapa: ${mapLabel}`);
     this.updatePreview(lobby.selectedMap);
 
     const players = lobby.players || [];

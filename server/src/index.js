@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { GameServer } from "./game/GameServer.js";
-import { buildWorldFromMap, listMaps, loadMapById } from "./game/mapLoader.js";
+import { buildWorldFromMap, listMaps, loadMapFile } from "./game/mapLoader.js";
 
 dotenv.config();
 
@@ -76,7 +76,7 @@ const io = new Server(httpServer, {
 const availableMaps = await listMaps(mapsDir);
 const mapsById = new Map();
 for (const item of availableMaps) {
-  const data = await loadMapById(mapsDir, item.id);
+  const data = await loadMapFile(mapsDir, item.file);
   if (!data) continue;
   mapsById.set(item.id, {
     id: item.id,

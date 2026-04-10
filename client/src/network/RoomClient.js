@@ -3,6 +3,7 @@ import { socket } from "./socket.js";
 export class RoomClient {
   constructor() {
     this.lobby = null;
+    this.lobbyUpdateListeners = [];
     this.listeners = {
       onLobbyUpdate: () => {},
       onState: () => {},
@@ -25,7 +26,7 @@ export class RoomClient {
     socket.on("disconnect", () => {
       this.listeners.onMessage("Desconectado del servidor.", true);
       this.lobby = null;
-      this.listeners.onLobbyUpdate(null);
+      this.notifyLobbyUpdate(null);
     });
 
     socket.on("connect_error", (error) => {
@@ -34,7 +35,7 @@ export class RoomClient {
 
     const handleLobbyPayload = (payload) => {
       this.lobby = payload;
-      this.listeners.onLobbyUpdate(payload);
+      this.notifyLobbyUpdate(payload);
     };
 
     socket.on("room-created", (payload) => {
@@ -100,6 +101,22 @@ export class RoomClient {
     });
   }
 
+  notifyLobbyUpdate(payload) {
+    this.listeners.onLobbyUpdate(payload);
+    for (const cb of this.lobbyUpdateListeners) {
+      try {
+        cb(payload);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /** Registra un callback adicional (no sustituye al de main.js). */
+  onLobbySceneUpdate(cb) {
+    this.lobbyUpdateListeners.push(cb);
+  }
+
   onLobbyUpdate(cb) {
     this.listeners.onLobbyUpdate = cb;
   }
@@ -159,7 +176,7 @@ export class RoomClient {
   leaveRoom() {
     socket.emit("leaveRoom");
     this.lobby = null;
-    this.listeners.onLobbyUpdate(null);
+    this.notifyLobbyUpdate(null);
   }
 
   selectMap(selectedMap) {
