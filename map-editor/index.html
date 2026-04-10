@@ -37,6 +37,7 @@
         <canvas id="canvas" width="800" height="600"></canvas>
       </div>
     </div>
-    <script type="module" src="./main.js"></script>
+    <!-- Sin type="module": asi funciona al abrir el archivo con file:// (doble clic). Los modulos ES bloquean file:// por CORS. -->
+    <script src="main.js"></script>
   </body>
   </html>
