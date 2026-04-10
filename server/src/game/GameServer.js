@@ -18,7 +18,13 @@ export class GameServer {
 
   onConnection(socket) {
     socket.on("create-room", () => this.handleCreateRoom(socket));
+    socket.on("createRoom", () => this.handleCreateRoom(socket));
     socket.on("join-room", (payload) => this.handleJoinRoom(socket, payload));
+    socket.on("joinRoom", (payload) => this.handleJoinRoom(socket, payload));
+    socket.on("leaveRoom", () => this.handleLeaveRoom(socket));
+    socket.on("leave-room", () => this.handleLeaveRoom(socket));
+    socket.on("startGame", () => this.handleStartGame(socket));
+    socket.on("selectMap", (payload) => this.handleSelectMap(socket, payload));
     socket.on("input-update", (input) => this.handleInput(socket, input));
     socket.on("shoot", (payload) => this.handleShoot(socket, payload));
     socket.on("disconnect", () => this.handleDisconnect(socket));
@@ -38,7 +44,8 @@ export class GameServer {
     this.playerRoomBySocket.set(socket.id, roomCode);
     socket.join(roomCode);
 
-    socket.emit("room-created", { roomCode, players: room.getLobbyPlayers() });
+    socket.emit("room-created", room.buildLobbyData());
+    socket.emit("createRoom", room.buildLobbyData());
     this.broadcastLobby(roomCode);
   }
 
@@ -54,6 +61,10 @@ export class GameServer {
       socket.emit("error-message", "Sala no encontrada.");
       return;
     }
+    if (room.state !== "waiting") {
+      socket.emit("error-message", "La partida ya inicio. No se puede unir.");
+      return;
+    }
     if (!room.canJoin) {
       socket.emit("error-message", "La sala esta llena (4/4).");
       return;
@@ -63,8 +74,43 @@ export class GameServer {
     this.playerRoomBySocket.set(socket.id, roomCode);
     socket.join(roomCode);
 
-    socket.emit("room-joined", { roomCode, players: room.getLobbyPlayers() });
+    socket.emit("room-joined", room.buildLobbyData());
+    socket.emit("joinRoom", room.buildLobbyData());
     this.broadcastLobby(roomCode);
+  }
+
+  handleLeaveRoom(socket) {
+    this.removeFromRoom(socket.id);
+  }
+
+  handleSelectMap(socket, payload) {
+    const room = this.getRoomForSocket(socket.id);
+    if (!room) return;
+
+    const selectedMap = payload?.selectedMap || "default";
+    const result = room.setSelectedMap(socket.id, selectedMap);
+    if (!result.ok) {
+      socket.emit("error-message", result.reason);
+      return;
+    }
+
+    this.broadcastLobby(room.code);
+  }
+
+  handleStartGame(socket) {
+    const room = this.getRoomForSocket(socket.id);
+    if (!room) return;
+
+    const result = room.startGame(socket.id);
+    if (!result.ok) {
+      socket.emit("error-message", result.reason);
+      return;
+    }
+
+    const payload = room.buildLobbyData();
+    this.io.to(room.code).emit("gameStarted", payload);
+    this.io.to(room.code).emit("game-started", payload);
+    this.broadcastLobby(room.code);
   }
 
   handleInput(socket, input) {
@@ -80,20 +126,7 @@ export class GameServer {
   }
 
   handleDisconnect(socket) {
-    const roomCode = this.playerRoomBySocket.get(socket.id);
-    if (!roomCode) return;
-
-    this.playerRoomBySocket.delete(socket.id);
-    const room = this.rooms.get(roomCode);
-    if (!room) return;
-
-    room.removePlayer(socket.id);
-    if (room.players.size === 0) {
-      this.rooms.delete(roomCode);
-      return;
-    }
-
-    this.broadcastLobby(roomCode);
+    this.removeFromRoom(socket.id);
   }
 
   getRoomForSocket(socketId) {
@@ -105,7 +138,26 @@ export class GameServer {
   broadcastLobby(roomCode) {
     const room = this.rooms.get(roomCode);
     if (!room) return;
-    this.io.to(roomCode).emit("room-update", { roomCode, players: room.getLobbyPlayers() });
+    const payload = room.buildLobbyData();
+    this.io.to(roomCode).emit("room-update", payload);
+    this.io.to(roomCode).emit("updateLobby", payload);
+  }
+
+  removeFromRoom(socketId) {
+    const roomCode = this.playerRoomBySocket.get(socketId);
+    if (!roomCode) return;
+
+    this.playerRoomBySocket.delete(socketId);
+    const room = this.rooms.get(roomCode);
+    if (!room) return;
+
+    room.removePlayer(socketId);
+    if (room.players.size === 0) {
+      this.rooms.delete(roomCode);
+      return;
+    }
+
+    this.broadcastLobby(roomCode);
   }
 
   tick() {
@@ -119,6 +171,7 @@ export class GameServer {
 
     if (now - this.lastBroadcastAt >= 1000 / STATE_BROADCAST_RATE) {
       for (const room of this.rooms.values()) {
+        if (room.state !== "playing") continue;
         this.io.to(room.code).emit("state", room.buildState());
       }
       this.lastBroadcastAt = now;

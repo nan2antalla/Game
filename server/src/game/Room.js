@@ -23,7 +23,11 @@ import { clamp, distanceSquared, randomSpawn } from "../utils/helpers.js";
 
 export class Room {
   constructor(code) {
+    this.id = code;
     this.code = code;
+    this.hostId = null;
+    this.state = "waiting";
+    this.selectedMap = "default";
     this.players = new Map();
     this.zombies = new Map();
     this.bullets = new Map();
@@ -33,7 +37,7 @@ export class Room {
   }
 
   get canJoin() {
-    return this.players.size < ROOM_MAX_PLAYERS;
+    return this.state === "waiting" && this.players.size < ROOM_MAX_PLAYERS;
   }
 
   addPlayer(socketId) {
@@ -42,11 +46,33 @@ export class Room {
     const spawn = randomSpawn(GAME_WIDTH, GAME_HEIGHT);
     const player = new Player({ id: socketId, x: spawn.x, y: spawn.y });
     this.players.set(socketId, player);
+    if (!this.hostId) {
+      this.hostId = socketId;
+    }
     return player;
   }
 
   removePlayer(socketId) {
     this.players.delete(socketId);
+    if (this.hostId === socketId) {
+      const next = this.players.keys().next();
+      this.hostId = next.done ? null : next.value;
+    }
+  }
+
+  setSelectedMap(socketId, selectedMap) {
+    if (socketId !== this.hostId) return { ok: false, reason: "Solo el host puede cambiar el mapa." };
+    if (this.state !== "waiting") return { ok: false, reason: "No se puede cambiar mapa con partida iniciada." };
+    if (selectedMap !== "default") return { ok: false, reason: "Mapa no disponible por ahora." };
+    this.selectedMap = selectedMap;
+    return { ok: true };
+  }
+
+  startGame(socketId) {
+    if (socketId !== this.hostId) return { ok: false, reason: "Solo el host puede iniciar la partida." };
+    if (this.state !== "waiting") return { ok: false, reason: "La partida ya esta en curso." };
+    this.state = "playing";
+    return { ok: true };
   }
 
   applyInput(socketId, input) {
@@ -79,6 +105,7 @@ export class Room {
   }
 
   tick(deltaMs, now) {
+    if (this.state !== "playing") return;
     const dt = deltaMs / 1000;
     this.movePlayers(dt);
     this.spawnZombies(now);
@@ -198,12 +225,24 @@ export class Room {
   }
 
   getLobbyPlayers() {
-    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name }));
+    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, isHost: p.id === this.hostId }));
+  }
+
+  buildLobbyData() {
+    return {
+      roomCode: this.code,
+      hostId: this.hostId,
+      state: this.state,
+      selectedMap: this.selectedMap,
+      players: this.getLobbyPlayers(),
+      maxPlayers: ROOM_MAX_PLAYERS,
+    };
   }
 
   buildState() {
     return {
       roomCode: this.code,
+      selectedMap: this.selectedMap,
       players: [...this.players.values()].map((p) => ({
         id: p.id,
         x: p.x,

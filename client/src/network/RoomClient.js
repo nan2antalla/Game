@@ -2,12 +2,12 @@ import { socket } from "./socket.js";
 
 export class RoomClient {
   constructor() {
-    this.roomCode = null;
-    this.players = [];
+    this.lobby = null;
     this.listeners = {
-      onRoomUpdate: () => {},
+      onLobbyUpdate: () => {},
       onState: () => {},
       onMessage: () => {},
+      onGameStarted: () => {},
     };
 
     socket.on("connect", () => {
@@ -16,33 +16,42 @@ export class RoomClient {
 
     socket.on("disconnect", () => {
       this.listeners.onMessage("Desconectado del servidor.", true);
-      this.roomCode = null;
-      this.players = [];
-      this.listeners.onRoomUpdate({ roomCode: null, players: [] });
+      this.lobby = null;
+      this.listeners.onLobbyUpdate(null);
     });
 
     socket.on("connect_error", (error) => {
       this.listeners.onMessage(`Error de conexion con servidor: ${error.message}`, true);
     });
 
-    socket.on("room-created", ({ roomCode, players }) => {
-      this.roomCode = roomCode;
-      this.players = players;
-      this.listeners.onRoomUpdate({ roomCode, players });
-      this.listeners.onMessage(`Sala creada: ${roomCode}`, false);
-    });
+    const handleLobbyPayload = (payload) => {
+      this.lobby = payload;
+      this.listeners.onLobbyUpdate(payload);
+    };
 
-    socket.on("room-joined", ({ roomCode, players }) => {
-      this.roomCode = roomCode;
-      this.players = players;
-      this.listeners.onRoomUpdate({ roomCode, players });
-      this.listeners.onMessage(`Te uniste a la sala ${roomCode}`, false);
+    socket.on("room-created", (payload) => {
+      handleLobbyPayload(payload);
+      this.listeners.onMessage(`Sala creada: ${payload.roomCode}`, false);
     });
+    socket.on("createRoom", handleLobbyPayload);
 
-    socket.on("room-update", ({ roomCode, players }) => {
-      this.roomCode = roomCode;
-      this.players = players;
-      this.listeners.onRoomUpdate({ roomCode, players });
+    socket.on("room-joined", (payload) => {
+      handleLobbyPayload(payload);
+      this.listeners.onMessage(`Te uniste a la sala ${payload.roomCode}`, false);
+    });
+    socket.on("joinRoom", handleLobbyPayload);
+
+    socket.on("room-update", handleLobbyPayload);
+    socket.on("updateLobby", handleLobbyPayload);
+
+    socket.on("gameStarted", (payload) => {
+      handleLobbyPayload(payload);
+      this.listeners.onGameStarted(payload);
+      this.listeners.onMessage("Partida iniciada.", false);
+    });
+    socket.on("game-started", (payload) => {
+      handleLobbyPayload(payload);
+      this.listeners.onGameStarted(payload);
     });
 
     socket.on("state", (state) => {
@@ -52,10 +61,14 @@ export class RoomClient {
     socket.on("error-message", (message) => {
       this.listeners.onMessage(message, true);
     });
+
+    window.addEventListener("beforeunload", () => {
+      socket.emit("leaveRoom");
+    });
   }
 
-  onRoomUpdate(cb) {
-    this.listeners.onRoomUpdate = cb;
+  onLobbyUpdate(cb) {
+    this.listeners.onLobbyUpdate = cb;
   }
 
   onState(cb) {
@@ -66,12 +79,30 @@ export class RoomClient {
     this.listeners.onMessage = cb;
   }
 
+  onGameStarted(cb) {
+    this.listeners.onGameStarted = cb;
+  }
+
   createRoom() {
-    socket.emit("create-room");
+    socket.emit("createRoom");
   }
 
   joinRoom(roomCode) {
-    socket.emit("join-room", { roomCode: roomCode.toUpperCase() });
+    socket.emit("joinRoom", { roomCode: roomCode.toUpperCase() });
+  }
+
+  leaveRoom() {
+    socket.emit("leaveRoom");
+    this.lobby = null;
+    this.listeners.onLobbyUpdate(null);
+  }
+
+  selectMap(selectedMap) {
+    socket.emit("selectMap", { selectedMap });
+  }
+
+  startGame() {
+    socket.emit("startGame");
   }
 
   sendInput(input) {
@@ -84,5 +115,9 @@ export class RoomClient {
 
   get socketId() {
     return socket.id;
+  }
+
+  get isInRoom() {
+    return Boolean(this.lobby?.roomCode);
   }
 }
