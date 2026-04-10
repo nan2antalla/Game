@@ -106,9 +106,15 @@ export class Room {
   setSelectedMap(socketId, selectedMap) {
     if (socketId !== this.hostId) return { ok: false, reason: "Solo el host puede cambiar el mapa." };
     if (this.state !== "waiting") return { ok: false, reason: "No se puede cambiar mapa con partida iniciada." };
-    if (selectedMap !== "default") return { ok: false, reason: "Mapa no disponible por ahora." };
-    this.selectedMap = selectedMap;
+    const nextMap = String(selectedMap || "").trim().toLowerCase();
+    if (!nextMap) return { ok: false, reason: "Mapa invalido." };
+    this.selectedMap = nextMap;
     return { ok: true };
+  }
+
+  setWorldFromMap(worldData, selectedMap) {
+    this.world = worldData;
+    this.selectedMap = selectedMap;
   }
 
   setModeSettings(socketId, payload) {
@@ -198,6 +204,10 @@ export class Room {
   }
 
   findOpenSpawn(radius) {
+    if (Array.isArray(this.world.spawnPoints) && this.world.spawnPoints.length > 0) {
+      const point = this.world.spawnPoints[Math.floor(Math.random() * this.world.spawnPoints.length)];
+      if (!this.isBlockedPosition(point.x, point.y, radius)) return { x: point.x, y: point.y };
+    }
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const spawn = randomSpawn(GAME_WIDTH, GAME_HEIGHT);
       if (!this.isBlockedPosition(spawn.x, spawn.y, radius)) return spawn;

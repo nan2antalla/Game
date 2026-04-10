@@ -5,6 +5,8 @@ export class LobbyScene extends Phaser.Scene {
     super("lobby-scene");
     this.roomClient = roomClient;
     this.lobby = null;
+    this.maps = [];
+    this.selectedMapPreviewKey = null;
   }
 
   create() {
@@ -25,6 +27,8 @@ export class LobbyScene extends Phaser.Scene {
       .text(600, 500, "Cambiar mapa: default", { color: "#fde68a", fontSize: "24px", backgroundColor: "#374151", padding: { x: 12, y: 8 } })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
+    this.mapPreviewBg = this.add.rectangle(980, 170, 180, 120, 0x1f2937).setOrigin(0.5);
+    this.mapPreviewImage = null;
 
     this.startButton = this.add
       .text(600, 570, "Iniciar partida", { color: "#ffffff", fontSize: "30px", backgroundColor: "#2563eb", padding: { x: 16, y: 10 } })
@@ -49,7 +53,10 @@ export class LobbyScene extends Phaser.Scene {
     this.mapButton.on("pointerdown", () => {
       if (!this.lobby) return;
       if (this.lobby.hostId !== this.roomClient.socketId) return;
-      this.roomClient.selectMap("default");
+      if (this.maps.length === 0) return;
+      const idx = this.maps.findIndex((m) => m.id === this.lobby.selectedMap);
+      const next = this.maps[(idx + 1 + this.maps.length) % this.maps.length];
+      this.roomClient.selectMap(next.id);
     });
 
     this.startButton.on("pointerdown", () => {
@@ -86,6 +93,11 @@ export class LobbyScene extends Phaser.Scene {
       this.lobby = lobby;
       if (this.scene.isActive()) this.renderLobby();
     });
+    this.roomClient.onMapsList((maps) => {
+      this.maps = maps || [];
+      if (this.scene.isActive()) this.renderLobby();
+    });
+    this.roomClient.requestMaps();
 
     this.renderLobby();
   }
@@ -100,6 +112,7 @@ export class LobbyScene extends Phaser.Scene {
     this.modeText.setText(`Modo: ${lobby.mode}`);
     this.modeDescText.setText(this.getModeDescription(lobby.mode));
     this.mapButton.setText(`Cambiar mapa: ${lobby.selectedMap}`);
+    this.updatePreview(lobby.selectedMap);
 
     const players = lobby.players || [];
     const listText = players
@@ -131,5 +144,28 @@ export class LobbyScene extends Phaser.Scene {
     if (mode === "score") return "El primer jugador en alcanzar la puntuacion objetivo gana.";
     if (mode === "time") return "El jugador con mayor puntuacion al finalizar el tiempo gana.";
     return "Sobrevive con tu equipo. No hay respawn. Si todos mueren, pierden.";
+  }
+
+  updatePreview(mapId) {
+    if (!mapId || this.maps.length === 0) return;
+    const map = this.maps.find((m) => m.id === mapId);
+    if (!map) return;
+    const key = `preview-${map.id}`;
+    if (this.selectedMapPreviewKey === key && this.mapPreviewImage) return;
+    if (this.textures.exists(key)) {
+      if (this.mapPreviewImage) this.mapPreviewImage.destroy();
+      this.mapPreviewImage = this.add.image(980, 170, key).setDisplaySize(170, 110);
+      this.selectedMapPreviewKey = key;
+      return;
+    }
+    this.load.image(key, map.previewUrl);
+    this.load.once("complete", () => {
+      if (this.mapPreviewImage) this.mapPreviewImage.destroy();
+      if (this.textures.exists(key)) {
+        this.mapPreviewImage = this.add.image(980, 170, key).setDisplaySize(170, 110);
+        this.selectedMapPreviewKey = key;
+      }
+    });
+    this.load.start();
   }
 }

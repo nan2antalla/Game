@@ -2,8 +2,11 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { GameServer } from "./game/GameServer.js";
+import { buildWorldFromMap, listMaps, loadMapById } from "./game/mapLoader.js";
 
 dotenv.config();
 
@@ -55,6 +58,11 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "boxhead-server" });
 });
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const mapsDir = path.resolve(__dirname, "../../maps");
+app.use("/maps", express.static(mapsDir));
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -65,7 +73,40 @@ const io = new Server(httpServer, {
   allowEIO3: true,
 });
 
-const gameServer = new GameServer(io);
+const availableMaps = await listMaps(mapsDir);
+const mapsById = new Map();
+for (const item of availableMaps) {
+  const data = await loadMapById(mapsDir, item.id);
+  if (!data) continue;
+  mapsById.set(item.id, {
+    id: item.id,
+    name: data.name || item.name,
+    width: data.width,
+    height: data.height,
+    previewUrl: item.previewUrl,
+    worldFactory: () => buildWorldFromMap(data),
+  });
+}
+app.get("/maps/index", (_req, res) => {
+  res.json(
+    [...mapsById.values()].map((m) => ({
+      id: m.id,
+      name: m.name,
+      width: m.width,
+      height: m.height,
+      previewUrl: m.previewUrl,
+    })),
+  );
+});
+
+const mapService = {
+  listMaps: async () =>
+    [...mapsById.values()].map((m) => ({ id: m.id, name: m.name, width: m.width, height: m.height, previewUrl: m.previewUrl })),
+  hasMap: (id) => mapsById.has(String(id || "").toLowerCase()),
+  getMap: (id) => mapsById.get(String(id || "").toLowerCase()) || null,
+};
+
+const gameServer = new GameServer(io, mapService);
 
 io.on("connection", (socket) => {
   gameServer.onConnection(socket);

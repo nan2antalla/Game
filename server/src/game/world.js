@@ -35,5 +35,5 @@ export function createWorld() {
   addBox(17, 9);
   addBox(14, 5);
 
-  return { walls, barrels, boxes, items: new Map(), nextItemId: 1 };
+  return { walls, barrels, boxes, items: new Map(), nextItemId: 1, spawnPoints: [] };
 }

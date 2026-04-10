@@ -3,8 +3,9 @@ import { generateRoomCode } from "../utils/helpers.js";
 import { Room } from "./Room.js";
 
 export class GameServer {
-  constructor(io) {
+  constructor(io, mapService) {
     this.io = io;
+    this.mapService = mapService;
     this.rooms = new Map();
     this.playerRoomBySocket = new Map();
     this.lastTickAt = Date.now();
@@ -17,6 +18,10 @@ export class GameServer {
   }
 
   onConnection(socket) {
+    socket.on("requestMaps", async () => {
+      const maps = await this.mapService.listMaps();
+      socket.emit("mapsList", maps);
+    });
     socket.on("create-room", (payload) => this.handleCreateRoom(socket, payload));
     socket.on("createRoom", (payload) => this.handleCreateRoom(socket, payload));
     socket.on("join-room", (payload) => this.handleJoinRoom(socket, payload));
@@ -114,6 +119,10 @@ export class GameServer {
     if (!room) return;
 
     const selectedMap = payload?.selectedMap || "default";
+    if (!this.mapService.hasMap(selectedMap)) {
+      socket.emit("error-message", "Mapa no encontrado.");
+      return;
+    }
     const result = room.setSelectedMap(socket.id, selectedMap);
     if (!result.ok) {
       socket.emit("error-message", result.reason);
@@ -138,6 +147,12 @@ export class GameServer {
     const room = this.getRoomForSocket(socket.id);
     if (!room) return;
 
+    const mapData = this.mapService.getMap(room.selectedMap);
+    if (!mapData) {
+      socket.emit("error-message", "No se pudo cargar el mapa seleccionado.");
+      return;
+    }
+    room.setWorldFromMap(mapData.worldFactory(), room.selectedMap);
     const result = room.startGame(socket.id);
     if (!result.ok) {
       socket.emit("error-message", result.reason);

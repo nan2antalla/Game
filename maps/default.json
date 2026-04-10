@@ -1,0 +1,25 @@
+{
+  "name": "default",
+  "width": 30,
+  "height": 20,
+  "tiles": [],
+  "objects": [
+    { "type": "wall", "col": 6, "row": 6 },
+    { "type": "wall", "col": 7, "row": 6 },
+    { "type": "wall", "col": 8, "row": 6 },
+    { "type": "destructibleWall", "col": 9, "row": 6 },
+    { "type": "destructibleWall", "col": 10, "row": 6 },
+    { "type": "barrel", "col": 12, "row": 9 },
+    { "type": "barrel", "col": 13, "row": 9 },
+    { "type": "box", "col": 16, "row": 10 },
+    { "type": "box", "col": 17, "row": 10 },
+    { "type": "wall", "col": 22, "row": 12 },
+    { "type": "destructibleWall", "col": 23, "row": 12 }
+  ],
+  "spawnPoints": [
+    { "x": 120, "y": 120 },
+    { "x": 1080, "y": 120 },
+    { "x": 120, "y": 680 },
+    { "x": 1080, "y": 680 }
+  ]
+}

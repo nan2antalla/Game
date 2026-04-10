@@ -7,6 +7,8 @@ Juego web 2D top-down shooter estilo Boxhead con PvP + zombies, con servidor aut
 ```text
 /client   -> Phaser 3 + Vite
 /server   -> Node.js + Express + Socket.IO
+/map-editor -> Herramienta web para crear mapas
+/maps -> Mapas JSON + miniaturas PNG
 ```
 
 ## Funcionalidades implementadas
@@ -97,6 +99,17 @@ Juego web 2D top-down shooter estilo Boxhead con PvP + zombies, con servidor aut
 - `WASD`: mover
 - Mouse: apuntar
 - Click izquierdo: disparar
+
+## Editor de mapas
+
+1. Abre `map-editor/index.html` en el navegador.
+2. Selecciona herramienta (pared, barril, caja, pared destructible, spawn, borrar).
+3. Diseña el grid 20x15.
+4. Usa:
+   - `Exportar JSON` -> genera `nombre.json`
+   - `Generar preview PNG` -> genera `nombre.png`
+5. Copia ambos archivos en `/maps`.
+6. Reinicia backend para que aparezca en el lobby.
 
 ## Notas tecnicas
 

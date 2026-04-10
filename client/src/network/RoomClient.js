@@ -15,6 +15,7 @@ export class RoomClient {
       onBarrelExploded: () => {},
       onBoxDestroyed: () => {},
       onItemDropped: () => {},
+      onMapsList: () => {},
     };
 
     socket.on("connect", () => {
@@ -90,6 +91,9 @@ export class RoomClient {
     socket.on("itemDropped", (payload) => {
       this.listeners.onItemDropped(payload);
     });
+    socket.on("mapsList", (payload) => {
+      this.listeners.onMapsList(payload);
+    });
 
     window.addEventListener("beforeunload", () => {
       socket.emit("leaveRoom");
@@ -140,6 +144,10 @@ export class RoomClient {
     this.listeners.onItemDropped = cb;
   }
 
+  onMapsList(cb) {
+    this.listeners.onMapsList = cb;
+  }
+
   createRoom(playerName) {
     socket.emit("createRoom", { playerName });
   }
@@ -164,6 +172,10 @@ export class RoomClient {
 
   updateMode(modePayload) {
     socket.emit("updateMode", modePayload);
+  }
+
+  requestMaps() {
+    socket.emit("requestMaps");
   }
 
   changeWeapon(weaponIndex) {

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Editor</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; }
+      .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+      .panel { padding: 16px; background: #111827; border-right: 1px solid #1f2937; }
+      .panel h2 { margin-top: 0; }
+      .tools button, .panel button, .panel select, .panel input { width: 100%; margin-bottom: 8px; padding: 8px; border: 0; border-radius: 6px; }
+      .tools button { background: #334155; color: white; cursor: pointer; }
+      .active { outline: 2px solid #22d3ee; }
+      #canvas { display: block; margin: 16px; background: #0b1220; border: 1px solid #334155; }
+      small { color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <h2>Map Editor</h2>
+        <input id="map-name" placeholder="Nombre del mapa" value="custom-map" />
+        <div class="tools">
+          <button data-tool="wall">Pared</button>
+          <button data-tool="destructibleWall">Pared destructible</button>
+          <button data-tool="barrel">Barril</button>
+          <button data-tool="box">Caja</button>
+          <button data-tool="spawn">Spawn point</button>
+          <button data-tool="erase">Borrar</button>
+        </div>
+        <button id="export-btn">Exportar JSON</button>
+        <button id="preview-btn">Generar preview PNG</button>
+        <small>Grid 20x15. Click para pintar/borrar.</small>
+      </div>
+      <div>
+        <canvas id="canvas" width="800" height="600"></canvas>
+      </div>
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+  </html>

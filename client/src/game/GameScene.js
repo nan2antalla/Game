@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { MapLoader } from "../maps/MapLoader.js";
 
 export class GameScene extends Phaser.Scene {
   constructor(roomClient) {
@@ -14,6 +15,7 @@ export class GameScene extends Phaser.Scene {
     this.boxSprites = new Map();
     this.itemSprites = new Map();
     this.lastDeathEvent = null;
+    this.mapOverlay = [];
   }
 
   create() {
@@ -75,6 +77,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.setupWeaponHotkeys();
+    this.loadMapOverlay();
   }
 
   update() {
@@ -236,6 +239,31 @@ export class GameScene extends Phaser.Scene {
     if (type === "tank") return 0x7c3aed;
     if (type === "erratic") return 0x06b6d4;
     return 0xd65454;
+  }
+
+  async loadMapOverlay() {
+    try {
+      const mapId = this.roomClient.lobby?.selectedMap || "default";
+      const map = await MapLoader.fetchMap(mapId);
+      this.clearMapOverlay();
+      for (const obj of map.objects || []) {
+        const x = obj.col * 40 + 20;
+        const y = obj.row * 40 + 20;
+        let shape = null;
+        if (obj.type === "wall") shape = this.add.rectangle(x, y, 40, 40, 0x475569, 0.22);
+        else if (obj.type === "destructibleWall") shape = this.add.rectangle(x, y, 40, 40, 0x94a3b8, 0.22);
+        else if (obj.type === "barrel") shape = this.add.circle(x, y, 14, 0xdc2626, 0.22);
+        else if (obj.type === "box") shape = this.add.rectangle(x, y, 28, 28, 0xb45309, 0.22);
+        if (shape) this.mapOverlay.push(shape);
+      }
+    } catch {
+      // Si falla carga del JSON, no bloqueamos la escena.
+    }
+  }
+
+  clearMapOverlay() {
+    this.mapOverlay.forEach((shape) => shape.destroy());
+    this.mapOverlay = [];
   }
 
   syncEntities(store, entities, createFn, updateFn) {
