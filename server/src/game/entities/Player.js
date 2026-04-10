@@ -4,7 +4,7 @@ import { DEFAULT_WEAPONS } from "../weapons.js";
 export class Player {
   constructor({ id, name, x, y }) {
     this.id = id;
-    this.name = name || `Player-${id.slice(0, 4)}`;
+    this.name = name;
     this.x = x;
     this.y = y;
     this.hp = PLAYER_MAX_HP;
@@ -15,7 +15,10 @@ export class Player {
     this.respawnAt = null;
     this.score = 0;
     this.kills = 0;
+    this.killsPlayers = 0;
+    this.killsZombies = 0;
     this.deaths = 0;
+    this.killedPlayersList = [];
     this.weapons = structuredClone(DEFAULT_WEAPONS);
     this.currentWeaponIndex = 0;
   }

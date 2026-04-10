@@ -6,6 +6,7 @@ export class GameScene extends Phaser.Scene {
     this.roomClient = roomClient;
     this.state = { players: [], zombies: [], bullets: [] };
     this.playerSprites = new Map();
+    this.playerNameTexts = new Map();
     this.zombieSprites = new Map();
     this.bulletSprites = new Map();
     this.lastDeathEvent = null;
@@ -85,6 +86,22 @@ export class GameScene extends Phaser.Scene {
         const color = player.id === this.roomClient.socketId ? 0x45d37b : 0x59a7ff;
         sprite.setFillStyle(player.isAlive ? color : 0x666666);
         sprite.setVisible(player.isAlive);
+      },
+    );
+    this.syncEntities(
+      this.playerNameTexts,
+      this.state.players,
+      (player) =>
+        this.add.text(player.x, player.y - 28, player.name || "Player", {
+          color: "#ffffff",
+          fontSize: "14px",
+          stroke: "#000000",
+          strokeThickness: 3,
+        }).setOrigin(0.5),
+      (text, player) => {
+        text.setPosition(player.x, player.y - 28);
+        text.setText(player.name || "Player");
+        text.setVisible(player.isAlive);
       },
     );
 

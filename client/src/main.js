@@ -1,12 +1,14 @@
 import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "./config.js";
 import { GameScene } from "./game/GameScene.js";
+import { GameOverScene } from "./game/GameOverScene.js";
 import { LobbyScene } from "./game/LobbyScene.js";
 import { RoomClient } from "./network/RoomClient.js";
 
 const createRoomBtn = document.getElementById("create-room-btn");
 const joinRoomBtn = document.getElementById("join-room-btn");
 const joinRoomInput = document.getElementById("join-room-input");
+const playerNameInput = document.getElementById("player-name-input");
 const messageText = document.getElementById("message");
 const gameRoot = document.getElementById("game-root");
 const lobbyContainer = document.getElementById("lobby");
@@ -22,7 +24,7 @@ function ensureGame() {
     height: GAME_HEIGHT,
     parent: gameRoot,
     backgroundColor: "#111827",
-    scene: [new LobbyScene(roomClient), new GameScene(roomClient)],
+    scene: [new LobbyScene(roomClient), new GameScene(roomClient), new GameOverScene(roomClient)],
   });
 }
 
@@ -31,6 +33,7 @@ function renderLobbyState(lobbyState) {
   createRoomBtn.disabled = inRoom;
   joinRoomBtn.disabled = inRoom;
   joinRoomInput.disabled = inRoom;
+  playerNameInput.disabled = inRoom;
   lobbyContainer.style.display = inRoom ? "none" : "block";
 
   if (inRoom) {
@@ -58,9 +61,28 @@ roomClient.onGameStarted(() => {
   if (!phaserGame) return;
   phaserGame.scene.start("game-scene");
 });
+roomClient.onGameOver((result) => {
+  if (!phaserGame) return;
+  phaserGame.scene.start("game-over-scene", { result });
+});
+
+function getPlayerName() {
+  const value = playerNameInput.value.trim();
+  if (!value) {
+    renderMessage("Debes ingresar un nombre.", true);
+    return null;
+  }
+  if (value.length > 12) {
+    renderMessage("El nombre debe tener maximo 12 caracteres.", true);
+    return null;
+  }
+  return value;
+}
 
 createRoomBtn.addEventListener("click", () => {
-  roomClient.createRoom();
+  const playerName = getPlayerName();
+  if (!playerName) return;
+  roomClient.createRoom(playerName);
 });
 
 joinRoomBtn.addEventListener("click", () => {
@@ -69,11 +91,16 @@ joinRoomBtn.addEventListener("click", () => {
     renderMessage("El codigo debe tener 4 letras.", true);
     return;
   }
-  roomClient.joinRoom(roomCode);
+  const playerName = getPlayerName();
+  if (!playerName) return;
+  roomClient.joinRoom(roomCode, playerName);
 });
 
 joinRoomInput.addEventListener("input", () => {
   joinRoomInput.value = joinRoomInput.value.replace(/[^a-zA-Z]/g, "").slice(0, 4).toUpperCase();
+});
+playerNameInput.addEventListener("input", () => {
+  playerNameInput.value = playerNameInput.value.slice(0, 12);
 });
 
 renderLobbyState(null);

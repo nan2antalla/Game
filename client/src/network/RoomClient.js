@@ -11,6 +11,7 @@ export class RoomClient {
       onPlayerDied: () => {},
       onPlayerRespawn: () => {},
       onScoreUpdated: () => {},
+      onGameOver: () => {},
     };
 
     socket.on("connect", () => {
@@ -74,6 +75,9 @@ export class RoomClient {
     socket.on("scoreUpdated", (payload) => {
       this.listeners.onScoreUpdated(payload);
     });
+    socket.on("gameOver", (payload) => {
+      this.listeners.onGameOver(payload);
+    });
 
     window.addEventListener("beforeunload", () => {
       socket.emit("leaveRoom");
@@ -108,12 +112,16 @@ export class RoomClient {
     this.listeners.onScoreUpdated = cb;
   }
 
-  createRoom() {
-    socket.emit("createRoom");
+  onGameOver(cb) {
+    this.listeners.onGameOver = cb;
   }
 
-  joinRoom(roomCode) {
-    socket.emit("joinRoom", { roomCode: roomCode.toUpperCase() });
+  createRoom(playerName) {
+    socket.emit("createRoom", { playerName });
+  }
+
+  joinRoom(roomCode, playerName) {
+    socket.emit("joinRoom", { roomCode: roomCode.toUpperCase(), playerName });
   }
 
   leaveRoom() {
@@ -128,6 +136,10 @@ export class RoomClient {
 
   startGame() {
     socket.emit("startGame");
+  }
+
+  updateMode(modePayload) {
+    socket.emit("updateMode", modePayload);
   }
 
   changeWeapon(weaponIndex) {

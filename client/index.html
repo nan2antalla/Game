@@ -74,16 +74,14 @@
 
       <div id="lobby" class="card">
         <div class="row">
+          <input id="player-name-input" maxlength="12" placeholder="Tu nombre (max 12)" />
           <button id="create-room-btn">Crear sala</button>
         </div>
         <div class="row" style="margin-top: 10px">
           <input id="join-room-input" maxlength="4" placeholder="Codigo (4 letras)" />
           <button id="join-room-btn">Unirse a sala</button>
         </div>
-        <p id="room-code" class="status">No estas en una sala.</p>
         <p id="message" class="status"></p>
-        <h3>Jugadores conectados</h3>
-        <ul id="players-list"></ul>
       </div>
 
       <div id="game-root"></div>

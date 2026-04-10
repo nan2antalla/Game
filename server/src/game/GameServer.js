@@ -17,21 +17,22 @@ export class GameServer {
   }
 
   onConnection(socket) {
-    socket.on("create-room", () => this.handleCreateRoom(socket));
-    socket.on("createRoom", () => this.handleCreateRoom(socket));
+    socket.on("create-room", (payload) => this.handleCreateRoom(socket, payload));
+    socket.on("createRoom", (payload) => this.handleCreateRoom(socket, payload));
     socket.on("join-room", (payload) => this.handleJoinRoom(socket, payload));
     socket.on("joinRoom", (payload) => this.handleJoinRoom(socket, payload));
     socket.on("leaveRoom", () => this.handleLeaveRoom(socket));
     socket.on("leave-room", () => this.handleLeaveRoom(socket));
     socket.on("startGame", () => this.handleStartGame(socket));
     socket.on("selectMap", (payload) => this.handleSelectMap(socket, payload));
+    socket.on("updateMode", (payload) => this.handleUpdateMode(socket, payload));
     socket.on("changeWeapon", (payload) => this.handleChangeWeapon(socket, payload));
     socket.on("input-update", (input) => this.handleInput(socket, input));
     socket.on("shoot", (payload) => this.handleShoot(socket, payload));
     socket.on("disconnect", () => this.handleDisconnect(socket));
   }
 
-  handleCreateRoom(socket) {
+  handleCreateRoom(socket, payload) {
     if (this.playerRoomBySocket.has(socket.id)) {
       socket.emit("error-message", "Ya estas dentro de una sala.");
       return;
@@ -41,7 +42,20 @@ export class GameServer {
     const room = new Room(roomCode);
     this.rooms.set(roomCode, room);
 
-    room.addPlayer(socket.id);
+    const playerName = String(payload?.playerName || "").trim();
+    const nameValidation = room.validatePlayerName(playerName);
+    if (!nameValidation.ok) {
+      socket.emit("error-message", nameValidation.reason);
+      this.rooms.delete(roomCode);
+      return;
+    }
+
+    const createdPlayer = room.addPlayer(socket.id, playerName);
+    if (!createdPlayer) {
+      socket.emit("error-message", "No se pudo crear el jugador en la sala.");
+      this.rooms.delete(roomCode);
+      return;
+    }
     this.playerRoomBySocket.set(socket.id, roomCode);
     socket.join(roomCode);
 
@@ -71,7 +85,18 @@ export class GameServer {
       return;
     }
 
-    room.addPlayer(socket.id);
+    const playerName = String(payload?.playerName || "").trim();
+    const nameValidation = room.validatePlayerName(playerName);
+    if (!nameValidation.ok) {
+      socket.emit("error-message", nameValidation.reason);
+      return;
+    }
+
+    const joinedPlayer = room.addPlayer(socket.id, playerName);
+    if (!joinedPlayer) {
+      socket.emit("error-message", "No se pudo unir a la sala.");
+      return;
+    }
     this.playerRoomBySocket.set(socket.id, roomCode);
     socket.join(roomCode);
 
@@ -95,6 +120,17 @@ export class GameServer {
       return;
     }
 
+    this.broadcastLobby(room.code);
+  }
+
+  handleUpdateMode(socket, payload) {
+    const room = this.getRoomForSocket(socket.id);
+    if (!room) return;
+    const result = room.setModeSettings(socket.id, payload);
+    if (!result.ok) {
+      socket.emit("error-message", result.reason);
+      return;
+    }
     this.broadcastLobby(room.code);
   }
 
@@ -182,12 +218,12 @@ export class GameServer {
 
     if (now - this.lastBroadcastAt >= 1000 / STATE_BROADCAST_RATE) {
       for (const room of this.rooms.values()) {
-        if (room.state !== "playing") continue;
-        this.io.to(room.code).emit("state", room.buildState());
         const events = room.consumeEvents();
         for (const event of events) {
           this.io.to(room.code).emit(event.type, event.payload);
         }
+        if (room.state !== "playing") continue;
+        this.io.to(room.code).emit("state", room.buildState());
       }
       this.lastBroadcastAt = now;
     }

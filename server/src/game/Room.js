@@ -29,6 +29,11 @@ export class Room {
     this.hostId = null;
     this.state = "waiting";
     this.selectedMap = "default";
+    this.mode = "score";
+    this.scoreLimit = 500;
+    this.timeLimitMs = 5 * 60 * 1000;
+    this.startTime = null;
+    this.gameOver = false;
     this.players = new Map();
     this.zombies = new Map();
     this.bullets = new Map();
@@ -52,11 +57,24 @@ export class Room {
     return this.state === "waiting" && this.players.size < ROOM_MAX_PLAYERS;
   }
 
-  addPlayer(socketId) {
+  validatePlayerName(playerName, excludeId = null) {
+    const normalized = String(playerName || "").trim();
+    if (!normalized) return { ok: false, reason: "El nombre es obligatorio." };
+    if (normalized.length > 12) return { ok: false, reason: "El nombre no puede superar 12 caracteres." };
+    const taken = [...this.players.values()].some(
+      (p) => p.id !== excludeId && p.name.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (taken) return { ok: false, reason: "Ese nombre ya existe en la sala." };
+    return { ok: true, name: normalized };
+  }
+
+  addPlayer(socketId, playerName) {
     if (!this.canJoin) return null;
+    const nameCheck = this.validatePlayerName(playerName);
+    if (!nameCheck.ok) return null;
 
     const spawn = randomSpawn(GAME_WIDTH, GAME_HEIGHT);
-    const player = new Player({ id: socketId, x: spawn.x, y: spawn.y });
+    const player = new Player({ id: socketId, name: nameCheck.name, x: spawn.x, y: spawn.y });
     this.players.set(socketId, player);
     if (!this.hostId) {
       this.hostId = socketId;
@@ -83,7 +101,38 @@ export class Room {
   startGame(socketId) {
     if (socketId !== this.hostId) return { ok: false, reason: "Solo el host puede iniciar la partida." };
     if (this.state !== "waiting") return { ok: false, reason: "La partida ya esta en curso." };
+    if ([...this.players.values()].some((p) => !p.name || !p.name.trim())) {
+      return { ok: false, reason: "Todos los jugadores deben tener nombre valido." };
+    }
     this.state = "playing";
+    this.startTime = Date.now();
+    this.gameOver = false;
+    return { ok: true };
+  }
+
+  setModeSettings(socketId, payload) {
+    if (socketId !== this.hostId) return { ok: false, reason: "Solo el host puede cambiar el modo." };
+    if (this.state !== "waiting") return { ok: false, reason: "No se puede cambiar modo durante la partida." };
+
+    const mode = payload?.mode;
+    if (!["score", "time", "campaign"].includes(mode)) {
+      return { ok: false, reason: "Modo invalido." };
+    }
+
+    const scoreOptions = [250, 500, 1000, 2500, 5000];
+    const timeOptionsMin = [2, 5, 10, 30];
+
+    this.mode = mode;
+    if (mode === "score") {
+      const scoreLimit = Number(payload?.scoreLimit);
+      if (!scoreOptions.includes(scoreLimit)) return { ok: false, reason: "Meta de score invalida." };
+      this.scoreLimit = scoreLimit;
+    }
+    if (mode === "time") {
+      const minutes = Number(payload?.timeLimitMinutes);
+      if (!timeOptionsMin.includes(minutes)) return { ok: false, reason: "Tiempo invalido." };
+      this.timeLimitMs = minutes * 60 * 1000;
+    }
     return { ok: true };
   }
 
@@ -128,13 +177,14 @@ export class Room {
   }
 
   tick(deltaMs, now) {
-    if (this.state !== "playing") return;
+    if (this.state !== "playing" || this.gameOver) return;
     const dt = deltaMs / 1000;
     this.processRespawns(now);
     this.movePlayers(dt);
     this.spawnZombies(now);
     this.moveZombies(dt, now);
     this.moveBullets(dt, now);
+    this.checkGameOver(now);
   }
 
   movePlayers(dt) {
@@ -219,6 +269,7 @@ export class Room {
 
       for (const target of this.players.values()) {
         if (!target.isAlive || target.id === bullet.ownerId) continue;
+        if (this.mode === "campaign") continue;
         const hitRadius = PLAYER_RADIUS + BULLET_RADIUS;
         if (distanceSquared(bullet.x, bullet.y, target.x, target.y) <= hitRadius * hitRadius) {
           target.hp = Math.max(0, target.hp - bullet.damage);
@@ -262,6 +313,7 @@ export class Room {
 
   processRespawns(now) {
     for (const player of this.players.values()) {
+      if (this.mode === "campaign") continue;
       if (player.isAlive || !player.respawnAt) continue;
       if (now < player.respawnAt) continue;
       const spawn = randomSpawn(GAME_WIDTH, GAME_HEIGHT);
@@ -300,8 +352,57 @@ export class Room {
       playerId: player.id,
       score: player.score,
       kills: player.kills,
+      killsPlayers: player.killsPlayers,
+      killsZombies: player.killsZombies,
       deaths: player.deaths,
     };
+  }
+
+  buildRanking() {
+    return [...this.players.values()]
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        score: p.score,
+        killsPlayers: p.killsPlayers,
+        killsZombies: p.killsZombies,
+        deaths: p.deaths,
+        killedPlayersList: p.killedPlayersList,
+      }))
+      .sort((a, b) => b.score - a.score);
+  }
+
+  emitGameOver(reason, winnerId = null) {
+    this.gameOver = true;
+    this.state = "waiting";
+    const ranking = this.buildRanking();
+    this.queueEvent("gameOver", {
+      roomCode: this.code,
+      reason,
+      mode: this.mode,
+      winnerId: winnerId || ranking[0]?.id || null,
+      ranking,
+      totalScore: ranking.reduce((acc, p) => acc + p.score, 0),
+    });
+  }
+
+  checkGameOver(now) {
+    if (this.mode === "score") {
+      const winner = [...this.players.values()].find((p) => p.score >= this.scoreLimit);
+      if (winner) this.emitGameOver("score_limit_reached", winner.id);
+      return;
+    }
+    if (this.mode === "time") {
+      if (this.startTime && now - this.startTime >= this.timeLimitMs) {
+        const ranking = this.buildRanking();
+        this.emitGameOver("time_up", ranking[0]?.id || null);
+      }
+      return;
+    }
+    if (this.mode === "campaign") {
+      const alive = [...this.players.values()].filter((p) => p.isAlive).length;
+      if (alive === 0) this.emitGameOver("all_players_dead", null);
+    }
   }
 
   getLobbyPlayers() {
@@ -314,6 +415,10 @@ export class Room {
       hostId: this.hostId,
       state: this.state,
       selectedMap: this.selectedMap,
+      mode: this.mode,
+      scoreLimit: this.scoreLimit,
+      timeLimitMs: this.timeLimitMs,
+      startTime: this.startTime,
       players: this.getLobbyPlayers(),
       maxPlayers: ROOM_MAX_PLAYERS,
     };
@@ -325,6 +430,7 @@ export class Room {
       selectedMap: this.selectedMap,
       players: [...this.players.values()].map((p) => ({
         id: p.id,
+        name: p.name,
         x: p.x,
         y: p.y,
         hp: p.hp,
@@ -333,6 +439,8 @@ export class Room {
         respawnAt: p.respawnAt,
         score: p.score,
         kills: p.kills,
+        killsPlayers: p.killsPlayers,
+        killsZombies: p.killsZombies,
         deaths: p.deaths,
         currentWeaponIndex: p.currentWeaponIndex,
         currentWeaponId: getCurrentWeapon(p)?.weapon.id || null,
