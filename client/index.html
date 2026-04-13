@@ -63,6 +63,19 @@
       .error {
         color: #ff8a8a;
       }
+      #orientation-lock {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        background: rgba(0, 0, 0, 0.9);
+        color: #fff;
+        z-index: 9999;
+        padding: 24px;
+        font-size: 22px;
+      }
     </style>
   </head>
   <body>
@@ -86,6 +99,7 @@
 
       <div id="game-root"></div>
     </div>
+    <div id="orientation-lock">Gira tu dispositivo para jugar en modo horizontal.</div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

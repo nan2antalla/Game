@@ -4,6 +4,7 @@ import { GameScene } from "./game/GameScene.js";
 import { GameOverScene } from "./game/GameOverScene.js";
 import { LobbyScene } from "./game/LobbyScene.js";
 import { RoomClient } from "./network/RoomClient.js";
+import { isMobileDevice, isPortraitOrientation } from "./utils/device.js";
 
 const createRoomBtn = document.getElementById("create-room-btn");
 const joinRoomBtn = document.getElementById("join-room-btn");
@@ -12,8 +13,10 @@ const playerNameInput = document.getElementById("player-name-input");
 const messageText = document.getElementById("message");
 const gameRoot = document.getElementById("game-root");
 const lobbyContainer = document.getElementById("lobby");
+const orientationLock = document.getElementById("orientation-lock");
 
 const roomClient = new RoomClient();
+const isMobile = isMobileDevice();
 let phaserGame = null;
 
 function ensureGame() {
@@ -24,8 +27,19 @@ function ensureGame() {
     height: GAME_HEIGHT,
     parent: gameRoot,
     backgroundColor: "#111827",
-    scene: [new LobbyScene(roomClient), new GameScene(roomClient), new GameOverScene(roomClient)],
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [new LobbyScene(roomClient), new GameScene(roomClient, { isMobile }), new GameOverScene(roomClient)],
   });
+}
+
+function applyMobileOrientationLock() {
+  if (!isMobile) return;
+  const isPortrait = isPortraitOrientation();
+  orientationLock.style.display = isPortrait ? "flex" : "none";
+  gameRoot.style.display = isPortrait ? "none" : "block";
 }
 
 function renderLobbyState(lobbyState) {
@@ -104,3 +118,6 @@ playerNameInput.addEventListener("input", () => {
 });
 
 renderLobbyState(null);
+applyMobileOrientationLock();
+window.addEventListener("resize", applyMobileOrientationLock);
+window.addEventListener("orientationchange", applyMobileOrientationLock);

@@ -1,8 +1,11 @@
-const COLS = 20;
-const ROWS = 15;
+// Mismas dimensiones que client/src/config.js + server WORLD_* (1200x800, celda 40).
+const COLS = 30;
+const ROWS = 20;
 const CELL = 40;
 
 const canvas = document.getElementById("canvas");
+canvas.width = COLS * CELL;
+canvas.height = ROWS * CELL;
 const ctx = canvas.getContext("2d");
 const mapNameInput = document.getElementById("map-name");
 const exportBtn = document.getElementById("export-btn");

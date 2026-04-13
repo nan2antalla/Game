@@ -105,7 +105,7 @@ Juego web 2D top-down shooter estilo Boxhead con PvP + zombies, con servidor aut
 1. Abre `map-editor/index.html` en el navegador (doble clic). El script **no** usa `type="module"` para que funcione con `file://`.
    - Si aun asi prefieres HTTP: desde la raiz del repo ejecuta `npx --yes serve map-editor -p 5500` y entra a `http://localhost:5500`.
 2. Selecciona herramienta (pared, barril, caja, pared destructible, spawn, borrar).
-3. Diseña el grid 20x15.
+3. Diseña el grid 30×20 (mismo tamaño que la ventana de juego: 1200×800 px, celdas de 40 px).
 4. Usa:
    - `Exportar JSON` -> genera `nombre.json`
    - `Generar preview PNG` -> genera `nombre.png`
