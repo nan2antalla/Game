@@ -19,6 +19,19 @@ const roomClient = new RoomClient();
 const isMobile = isMobileDevice();
 let phaserGame = null;
 
+async function requestMobileFullscreen() {
+  if (!isMobile) return;
+  if (document.fullscreenElement) return;
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) {
+      await el.requestFullscreen();
+    }
+  } catch {
+    // Algunos navegadores solo permiten fullscreen en gestos directos.
+  }
+}
+
 function ensureGame() {
   if (phaserGame) return;
   phaserGame = new Phaser.Game({
@@ -72,6 +85,7 @@ function renderMessage(message, isError) {
 roomClient.onLobbyUpdate(renderLobbyState);
 roomClient.onMessage(renderMessage);
 roomClient.onGameStarted(() => {
+  requestMobileFullscreen();
   if (!phaserGame) return;
   phaserGame.scene.start("game-scene");
 });
@@ -94,12 +108,14 @@ function getPlayerName() {
 }
 
 createRoomBtn.addEventListener("click", () => {
+  requestMobileFullscreen();
   const playerName = getPlayerName();
   if (!playerName) return;
   roomClient.createRoom(playerName);
 });
 
 joinRoomBtn.addEventListener("click", () => {
+  requestMobileFullscreen();
   const roomCode = joinRoomInput.value.trim().toUpperCase();
   if (roomCode.length !== 4) {
     renderMessage("El codigo debe tener 4 letras.", true);

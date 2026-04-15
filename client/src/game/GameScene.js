@@ -20,8 +20,8 @@ export class GameScene extends Phaser.Scene {
     this.mobileInput = {
       moveX: 0,
       moveY: 0,
-      aimingPointerId: null,
-      firePointerId: null,
+      movePointerId: null,
+      aimPointerId: null,
       aimAngle: 0,
       wantWeaponSwap: false,
       shotHeld: false,
@@ -32,6 +32,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    if (this.isMobile) this.input.addPointer(4);
     this.add.rectangle(600, 400, 1200, 800, 0x1a2233).setOrigin(0.5);
     this.cameras.main.setBounds(0, 0, 1200, 800);
     this.cursors = this.isMobile
@@ -304,92 +305,102 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const width = cam.width;
     const height = cam.height;
-    const joystickX = 130;
-    const joystickY = height - 130;
+    const moveX = 130;
+    const moveY = height - 130;
+    const aimX = width - 130;
+    const aimY = height - 130;
     const baseRadius = 74;
     const stickRadius = 36;
 
-    this.joystickBase = this.add.circle(joystickX, joystickY, baseRadius, 0x334155, 0.35).setScrollFactor(0);
-    this.joystickStick = this.add.circle(joystickX, joystickY, stickRadius, 0x60a5fa, 0.7).setScrollFactor(0);
-    this.fireButton = this.add
-      .circle(width - 120, height - 120, 62, 0xef4444, 0.5)
-      .setScrollFactor(0)
-      .setInteractive({ useHandCursor: false });
-    this.fireLabel = this.add
-      .text(width - 120, height - 120, "FIRE", { color: "#ffffff", fontSize: "20px", fontStyle: "bold" })
-      .setOrigin(0.5)
-      .setScrollFactor(0);
+    this.joystickBase = this.add.circle(moveX, moveY, baseRadius, 0x334155, 0.35).setScrollFactor(0);
+    this.joystickStick = this.add.circle(moveX, moveY, stickRadius, 0x60a5fa, 0.7).setScrollFactor(0);
+    this.aimBase = this.add.circle(aimX, aimY, baseRadius, 0x7f1d1d, 0.35).setScrollFactor(0);
+    this.aimStick = this.add.circle(aimX, aimY, stickRadius, 0xf97316, 0.72).setScrollFactor(0);
     this.weaponButton = this.add
-      .circle(width - 245, height - 200, 44, 0x22c55e, 0.45)
+      .circle(width - 250, height - 240, 44, 0x22c55e, 0.45)
       .setScrollFactor(0)
       .setInteractive({ useHandCursor: false });
     this.weaponLabel = this.add
-      .text(width - 245, height - 200, "ARMA", { color: "#ffffff", fontSize: "12px" })
+      .text(width - 250, height - 240, "ARMA", { color: "#ffffff", fontSize: "12px" })
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    const joystickHit = this.add.circle(joystickX, joystickY, baseRadius + 25, 0x000000, 0.001).setScrollFactor(0).setInteractive();
+    const moveHit = this.add.circle(moveX, moveY, baseRadius + 25, 0x000000, 0.001).setScrollFactor(0).setInteractive();
+    const aimHit = this.add.circle(aimX, aimY, baseRadius + 25, 0x000000, 0.001).setScrollFactor(0).setInteractive();
 
-    const setJoystickFromPointer = (pointer) => {
-      const dx = pointer.x - joystickX;
-      const dy = pointer.y - joystickY;
+    const getStickVector = (pointer, centerX, centerY) => {
+      const dx = pointer.x - centerX;
+      const dy = pointer.y - centerY;
       const distance = Math.hypot(dx, dy);
       const clamped = Math.min(distance, baseRadius);
       const nx = distance > 0 ? dx / distance : 0;
       const ny = distance > 0 ? dy / distance : 0;
-      this.mobileInput.moveX = nx * (clamped / baseRadius);
-      this.mobileInput.moveY = ny * (clamped / baseRadius);
-      this.joystickStick.setPosition(joystickX + nx * clamped, joystickY + ny * clamped);
+      return { nx, ny, clamped };
     };
 
-    joystickHit.on("pointerdown", (pointer) => {
-      this.mobileInput.aimingPointerId = pointer.id;
-      setJoystickFromPointer(pointer);
+    const setMoveFromPointer = (pointer) => {
+      const v = getStickVector(pointer, moveX, moveY);
+      this.mobileInput.moveX = v.nx * (v.clamped / baseRadius);
+      this.mobileInput.moveY = v.ny * (v.clamped / baseRadius);
+      this.joystickStick.setPosition(moveX + v.nx * v.clamped, moveY + v.ny * v.clamped);
+    };
+
+    const setAimFromPointer = (pointer) => {
+      const v = getStickVector(pointer, aimX, aimY);
+      this.mobileInput.aimAngle = Math.atan2(v.ny, v.nx);
+      this.mobileInput.shotHeld = v.clamped > 10;
+      this.aimStick.setPosition(aimX + v.nx * v.clamped, aimY + v.ny * v.clamped);
+    };
+
+    moveHit.on("pointerdown", (pointer) => {
+      this.mobileInput.movePointerId = pointer.id;
+      setMoveFromPointer(pointer);
     });
+    aimHit.on("pointerdown", (pointer) => {
+      this.mobileInput.aimPointerId = pointer.id;
+      setAimFromPointer(pointer);
+    });
+
     this.input.on("pointermove", (pointer) => {
-      if (this.mobileInput.aimingPointerId === pointer.id) {
-        setJoystickFromPointer(pointer);
+      if (this.mobileInput.movePointerId === pointer.id) {
+        setMoveFromPointer(pointer);
       }
-      if (this.mobileInput.firePointerId === pointer.id) {
-        const me = this.state.players.find((p) => p.id === this.roomClient.socketId);
-        if (me) {
-          this.mobileInput.aimAngle = Phaser.Math.Angle.Between(me.x, me.y, pointer.worldX, pointer.worldY);
-        }
+      if (this.mobileInput.aimPointerId === pointer.id) {
+        setAimFromPointer(pointer);
       }
     });
     this.input.on("pointerup", (pointer) => {
-      if (this.mobileInput.aimingPointerId === pointer.id) {
-        this.mobileInput.aimingPointerId = null;
+      if (this.mobileInput.movePointerId === pointer.id) {
+        this.mobileInput.movePointerId = null;
         this.mobileInput.moveX = 0;
         this.mobileInput.moveY = 0;
-        this.joystickStick.setPosition(joystickX, joystickY);
+        this.joystickStick.setPosition(moveX, moveY);
       }
-      if (this.mobileInput.firePointerId === pointer.id) {
-        this.mobileInput.firePointerId = null;
+      if (this.mobileInput.aimPointerId === pointer.id) {
+        this.mobileInput.aimPointerId = null;
         this.mobileInput.shotHeld = false;
-        this.fireButton.setFillStyle(0xef4444, 0.5);
+        this.aimStick.setPosition(aimX, aimY);
       }
     });
     this.input.on("pointerupoutside", (pointer) => {
-      if (this.mobileInput.aimingPointerId === pointer.id || this.mobileInput.firePointerId === pointer.id) {
-        this.mobileInput.aimingPointerId = null;
-        this.mobileInput.firePointerId = null;
-        this.mobileInput.shotHeld = false;
+      if (this.mobileInput.movePointerId === pointer.id) {
+        this.mobileInput.movePointerId = null;
         this.mobileInput.moveX = 0;
         this.mobileInput.moveY = 0;
-        this.fireButton.setFillStyle(0xef4444, 0.5);
-        this.joystickStick.setPosition(joystickX, joystickY);
+        this.joystickStick.setPosition(moveX, moveY);
+      }
+      if (this.mobileInput.aimPointerId === pointer.id) {
+        this.mobileInput.aimPointerId = null;
+        this.mobileInput.shotHeld = false;
+        this.aimStick.setPosition(aimX, aimY);
       }
     });
-    this.fireButton.on("pointerdown", (pointer) => {
-      this.mobileInput.firePointerId = pointer.id;
-      this.mobileInput.shotHeld = true;
-      this.fireButton.setFillStyle(0xf97316, 0.72);
-      const me = this.state.players.find((p) => p.id === this.roomClient.socketId);
-      if (me) {
-        this.mobileInput.aimAngle = Phaser.Math.Angle.Between(me.x, me.y, pointer.worldX, pointer.worldY);
-      }
+
+    // Tap en el joystick derecho inicia disparo en la direccion del tap.
+    aimHit.on("pointerup", () => {
+      this.mobileInput.shotHeld = false;
     });
+
     this.weaponButton.on("pointerdown", () => {
       this.mobileInput.wantWeaponSwap = true;
     });
